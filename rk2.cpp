@@ -1,7 +1,10 @@
 #include <iostream>
 #include <atomic>
 #include <thread>
+#include <semaphore>
 #include <condition_variable>
+
+std::counting_semaphore<1> first_is_run(0);
 
 class PingPong
 {
@@ -11,29 +14,40 @@ public:
 	void ping()
 	{
     	std::unique_lock<std::mutex> lock(m_);
-    	while (count_.load() < MAX)
+        first_is_run.release();
+    	while (count_ < MAX)
     	{
         	std::cout << "Ping" << std::endl;
         	count_++;
+            wait = true;
         	cv_.notify_all();
-        	cv_.wait(lock);
+            while (wait) {
+        	    cv_.wait(lock);
+                wait = false;
+            }
     	}
  	}
 
 	void pong()
 	{
+        first_is_run.acquire();
     	std::unique_lock<std::mutex> lock(m_);
-    	while (count_.load() < MAX)
+    	while (count_ < MAX)
     	{
         	std::cout << "Pong" << std::endl;
         	count_++;
+            wait = true;
         	cv_.notify_all();
-        	cv_.wait(lock);
+            while (wait) {
+                cv_.wait(lock);
+                wait = false;
+            }
     	}
 	}
 
 private:
-	std::atomic<std::size_t> count_;
+    std::atomic<bool> wait = false;; 
+	std::atomic<std::size_t> count_ = 0;
 	std::mutex m_;
 	std::condition_variable cv_;
 };
