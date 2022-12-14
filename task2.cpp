@@ -79,8 +79,9 @@ class thread_pool{
             }
 
             string task_filename;
-            cout << "DEBUG: task_filename" << endl;
+            cout << "DEBUG: task_filename" << task_filename << endl;
             if(work_queue.try_pop(task_filename)) {
+                cout << "DEBUG: task_filename " << task_filename << endl;
                 solve(task_filename);
             }
         }
@@ -94,6 +95,9 @@ public:
     ~thread_pool() {
         done = true;
         cond.notify_one();
+        for (int i = 0; i < thread_quantity; ++i) {
+            threads[i].join();
+        }
     }
 
     void start(string filename) {
