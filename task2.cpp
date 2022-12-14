@@ -1,5 +1,6 @@
 #include <vector>
 #include <functional>
+#include <utility>
 #include <fstream>
 #include <thread>
 #include <mutex>
@@ -13,9 +14,10 @@
 #include <queue>
 
 using namespace std;
+int inf = 1e8;
+atomic<int> maxi = -inf;
 
-
-void solve();
+void solve(string filename);
 
 template <typename T>
 class threadsafe_queue
@@ -59,7 +61,7 @@ public:
 
 
 
-threadsafe_queue<std::function<void()>> work_queue;
+threadsafe_queue <string> work_queue;
 
 class thread_pool{
     int                      thread_quantity;
@@ -76,27 +78,25 @@ class thread_pool{
                 cond.wait(lk, [this]{ return (!work_queue.empty()) || done; });
             }
 
-            std::function<void()> task;
-            if(work_queue.try_pop(task)) {
-                task();
+            string task_filename;
+            cout << "DEBUG: task_filename" << endl;
+            if(work_queue.try_pop(task_filename)) {
+                solve(task_filename);
             }
-                
-
         }
     }
 
 public:
-    thread_pool(int thread_quantity, string file_name) : 
+    thread_pool(int thread_quantity) : 
         thread_quantity(thread_quantity), 
-        done(false),
-        filename(file_name) {}
+        done(false) {}
 
     ~thread_pool() {
         done = true;
         cond.notify_one();
     }
 
-    void start() {
+    void start(string filename) {
         if (threads.empty()) {
             try {
                 for(int i=0; i < thread_quantity; ++i) {
@@ -106,12 +106,15 @@ public:
                 fin.open(filename);
                 std::string str;
                 while (std::getline(fin, str)) {
-                    work_queue.push(std::function<void()>(solve));
+                    cout << "pushing str: " << str << endl;
+                    work_queue.push(str);
                 }
+                cout << "pushed all" << endl;
             }
             catch(...) {
                 done = true;
                 cond.notify_all();
+                cout << "catch error" << endl;
                 throw;
             }
         }
@@ -121,14 +124,26 @@ public:
 
 };
 
-void solve() {
-
+void solve(string filename) {
+    ifstream fin;
+    fin.open(filename);
+    std::string str;
+    int maxi_in_thread = -inf;
+    while (std::getline(fin, str)) {
+        int value = stoi(str);
+        maxi_in_thread = max(maxi_in_thread, value);
+    }
+    if (maxi.load() < maxi_in_thread) {
+        maxi = maxi_in_thread;
+    }
 }
 
 int main(int argc, char *argv[]) {
-    string file_name = argv[1];
+    string filename = argv[1];
     int k = atoi(argv[2]);
-    thread_pool pool(k, file_name);
+    thread_pool pool(k);
+    cout << filename << endl << k << endl;
+    pool.start(filename);
     // ifstream fin;
     // fin.open(file_name);
 
