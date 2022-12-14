@@ -1,10 +1,7 @@
 #include <iostream>
 #include <atomic>
 #include <thread>
-#include <semaphore>
 #include <condition_variable>
-
-std::counting_semaphore<1> first_is_run(0);
 
 class PingPong
 {
@@ -14,45 +11,29 @@ public:
 	void ping()
 	{
     	std::unique_lock<std::mutex> lock(m_);
-        first_is_run.release();
-        // std::cout << "ping" << std::endl;
-    	while (count_ < MAX)
+    	while (count_.load() < MAX)
     	{
         	std::cout << "Ping" << std::endl;
         	count_++;
-            wait = true;
         	cv_.notify_all();
-            while (wait) {
-        	    cv_.wait(lock);
-                wait = false;
-            }
+        	cv_.wait(lock);
     	}
-        // std::cout << "ping out" << std::endl;
  	}
 
 	void pong()
 	{
-        first_is_run.acquire();
     	std::unique_lock<std::mutex> lock(m_);
-        // std::cout << "pong" << std::endl;
-        // std::cout << count_ << std::endl;
-    	while (count_ < MAX)
+    	while (count_.load() < MAX)
     	{
         	std::cout << "Pong" << std::endl;
         	count_++;
-            wait = true;
         	cv_.notify_all();
-            while (wait) {
-                cv_.wait(lock);
-                wait = false;
-            }
+        	cv_.wait(lock);
     	}
-        // std::cout << "pong out" << std::endl;
 	}
 
 private:
-    std::atomic<bool> wait = false;; 
-	std::atomic<std::size_t> count_ = 0;
+	std::atomic<std::size_t> count_;
 	std::mutex m_;
 	std::condition_variable cv_;
 };
@@ -61,7 +42,6 @@ int main()
 {
 	PingPong p;
 	std::thread pingThread(&PingPong::ping, &p);
-    // first_is_run.release();
 	std::thread pongThread(&PingPong::pong, &p);
 
 	pingThread.join();
